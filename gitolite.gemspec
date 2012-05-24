@@ -18,7 +18,7 @@ Gem::Specification.new do |s|
   s.add_development_dependency "forgery", "~> 0.5.0"
   s.add_development_dependency "rdoc", "~> 3.12"
   s.add_development_dependency "simplecov", "~> 0.6.2"
-  s.add_dependency "grit", "~> 2.5.0"
+  s.add_dependency "grit", ">= 2.5.0"
   s.add_dependency "hashery", "~> 1.5.0"
   s.add_dependency "plexus", "~> 0.5.10"
 
