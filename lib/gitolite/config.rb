@@ -25,8 +25,12 @@ module Gitolite
 
     def self.load_from(filename, parent=nil)
       conf = self.new(filename, parent)
-      conf.process_config(filename)
+      conf.load_from(filename)
       conf
+    end
+
+    def load_from(filename)
+      process_config(filename)
     end
 
     def name
@@ -77,7 +81,6 @@ module Gitolite
     def has_subconf?(aFile, level = 1)
       file = get_relative_path(normalize_config_name(aFile))
       result = @subconfs.has_key?(file)
-      #file.should == '' if aFile == 'subconfs.conf'
       if !result and (level > 1)
         level -= 1
         @subconfs.each do |k, v|
@@ -179,6 +182,7 @@ module Gitolite
       new_conf
     end
 
+    private
       #Based on
       #https://github.com/sitaramc/gitolite/blob/pu/src/gl-compile-conf#cleanup_conf_line
       def cleanup_config_line(line)
@@ -260,18 +264,25 @@ module Gitolite
             when /^include "(.+)"/
               #TODO: implement includes
               #ignore includes for now
-            when /^subconf (["'])(.+)\1/
-              #TODO: implement subconfs
+            when /^subconf(?:\s+(['"])?([-\w.\/\\]+)\1)?\s+(['"])?([-\w.\*\?\/\\]+)\3/
+              # todo: the file may be * match many files (Gitolite v3).
+              # http://sitaramc.github.com/gitolite/deleg.html
+              sub_conf_name = $2
+              sub_conf_name = $4 unless sub_conf_name
               dir = File.dirname(@file)
-              file = $2
+              file = $4
               path = Pathname.new file
               file = File.join(dir, file) unless path.absolute?
               path = Pathname.new file
-              raise ParseError, "'#{line}' '#{file}' not exits!" unless path.file?
-              if not root_config.has_subconf?($2, 99)
-                conf = Gitolite::Config.load_from(file, self)
+              if file =~ /\*|\?/ # it should be a container for matched files.
+                 Gitolite::Config.new(file, self)
               else
-                raise ParseError, "'#{line}' recursive reference!"
+                raise ParseError, "'#{line}' '#{file}' not exits!" unless path.file?
+                if !root_config.has_subconf?(sub_conf_name, 99) || !root_config.has_subconf?(parent, 99)
+                  conf = Gitolite::Config.load_from(file, self)
+                else
+                  raise ConfigDependencyError, "'#{line}' recursive reference!"
+                end
               end
             else
               raise ParseError, "'#{line}' cannot be processed"
@@ -279,7 +290,6 @@ module Gitolite
         end
       end
 
-    private
       # Normalizes the various different input objects to Strings
       def normalize_name(context, constant = nil)
         case context

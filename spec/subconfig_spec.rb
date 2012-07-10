@@ -10,13 +10,13 @@ describe Gitolite::Config do
 
     describe '#new' do
       it 'should has a sub-configuration' do
-        @root_config.subconfs.length.should == 1
+        @root_config.subconfs.length.should == 2
         @root_config.has_subconf?('bar.conf').should == true
         bar = @root_config.get_subconf 'bar.conf'
         bar.class.should == Gitolite::Config
         bar.groups.length.should == 1
         bar.parent.should be @root_config
-        bar.subconfs.length.should == 0
+        bar.subconfs.length.should == 1
       end
 
       it 'should has a repos in subconf' do
@@ -27,7 +27,7 @@ describe Gitolite::Config do
 
 
       it 'should raise error when subconfig recursive include' do
-        expect{Gitolite::Config.load_from(File.join(conf_dir, 'sparent.conf'))}.to raise_error(Gitolite::Config::ParseError)
+        expect{Gitolite::Config.load_from(File.join(conf_dir, 'sparent.conf'))}.to raise_error(Gitolite::Config::ConfigDependencyError)
       end
     end
 
