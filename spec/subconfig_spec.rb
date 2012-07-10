@@ -8,7 +8,7 @@ describe Gitolite::Config do
       @bar_config =  @root_config.get_subconf 'bar.conf'
     end
 
-    describe '#new' do
+    describe '#load_from' do
       it 'should has a sub-configuration' do
         @root_config.subconfs.length.should == 3
         @root_config.has_subconf?('bar.conf').should == true
@@ -18,6 +18,16 @@ describe Gitolite::Config do
         bar.parent.should be @root_config
         bar.subconfs.length.should == 1
       end
+
+      it 'should have a wildchar matched subconf' do
+        @root_config.has_subconf?('wild/*.conf').should == true
+        wilds= @root_config.get_subconf('wild/*.conf')
+        wilds.class.should == Gitolite::Config
+        wilds.subconfs.length.should == 2
+        wilds.has_subconf?('wild1.conf').should == true
+        wilds.has_subconf?('hiwild.conf').should == true
+      end
+
 
       it 'should has a repos in subconf bar' do
           r = @bar_config.get_repo('bar')
@@ -179,8 +189,8 @@ describe Gitolite::Config do
         f = File.read(file)
         lines = f.lines.map {|l| l.strip}
         # Compare the file lines.  Spacing is important here since we are doing a direct comparision
-        lines[0].should == "subconf    \"wild/*.conf\""
-        lines[1].should == "subconf    \"mytest_subconf/subconf1.conf\""
+        lines[0].should == "subconf    \"mytest_subconf/subconf1.conf\""
+        lines[1].should == "subconf    \"wild/*.conf\""
         # Cleanup
         File.unlink(file)
 

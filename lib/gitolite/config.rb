@@ -306,7 +306,10 @@ module Gitolite
               path = Pathname.new file
               file = File.join(dir, file) unless path.absolute?
               if is_container?(file) # it should be a container for matched files.
-                 Gitolite::Config.new(file, self)
+                 container = Gitolite::Config.new(file, self)
+                 Dir[file].each do |f|
+                   Gitolite::Config.load_from(f, container)
+                 end
               else
                 path = Pathname.new file
                 raise ParseError, "'#{line}' '#{file}' not exits!" unless path.file?
