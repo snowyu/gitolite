@@ -37,6 +37,11 @@ module Gitolite
       @file
     end
 
+    # the Config instance just is a container of the subconfs if true
+    def is_container?(name = @filename)
+      name =~ /\*|\?/
+    end
+
     def root_config
       return @root_config if @root_config
       root = self
@@ -63,6 +68,25 @@ module Gitolite
       conf.parent = self if conf.parent != self 
       key = get_relative_path(conf.file)
       @subconfs[key] = conf
+    end
+
+    # get the config file path base on the @file
+    def get_file_path(file)
+      path = Pathname.new(file)
+      basedirname = File.dirname(@file)
+      basedir = Pathname.new basedirname
+      if path.relative?
+        if basedirname != '.' && basedir.relative?
+          File.join(basedir, file)
+        else
+          file
+        end
+      else
+        result = path.relative_path_from(basedir)
+        result.to_s
+      end
+    rescue
+      file
     end
 
     def get_relative_path(file)
@@ -145,6 +169,7 @@ module Gitolite
     def to_file(path=".", filename=@filename, force_dir=false)
       filename=@filename if !filename || filename == ''
       new_conf = File.join(path, filename)
+      path = File.dirname(new_conf)
 
       if force_dir
         vPath = Pathname.new File.dirname(new_conf)
@@ -153,30 +178,37 @@ module Gitolite
         raise ArgumentError, "Path contains a filename or does not exist" unless File.directory?(path)
       end
 
-      File.open(new_conf, "w") do |f|
-        #Output groups
-        dep_order = build_groups_depgraph
-        dep_order.each {|group| f.write group.to_s }
-
-        gitweb_descs = []
-        @repos.each do |k, v|
-          f.write v.to_s
-
-          gwd = v.gitweb_description
-          gitweb_descs.push(gwd) unless gwd.nil?
-        end
-
-        f.write gitweb_descs.join("\n")
-
-        # write subconfs into file
-        gitweb_descs = []
+      if is_container?
         @subconfs.each do |k ,v|
-          k= get_relative_path k
-          v.to_file(path, k, force_dir)
-          gitweb_descs.push("include    \"#{k}\"")
+            k= get_relative_path k
+            v.to_file(path, k, force_dir)
         end
+      else
+        File.open(new_conf, "w") do |f|
+          #Output groups
+          dep_order = build_groups_depgraph
+          dep_order.each {|group| f.write group.to_s }
 
-        f.write gitweb_descs.join("\n")
+          gitweb_descs = []
+          @repos.each do |k, v|
+            f.write v.to_s
+
+            gwd = v.gitweb_description
+            gitweb_descs.push(gwd) unless gwd.nil?
+          end
+
+          f.write gitweb_descs.join("\n")
+
+          # write subconfs into file
+          gitweb_descs = []
+          @subconfs.each do |k ,v|
+            k= get_relative_path k
+            gitweb_descs.push("subconf    \"#{k}\"")
+            v.to_file(path, k, force_dir) #unless is_container?(k)
+          end
+
+          f.write gitweb_descs.join("\n")
+        end
       end
 
       new_conf
@@ -264,19 +296,19 @@ module Gitolite
             when /^include "(.+)"/
               #TODO: implement includes
               #ignore includes for now
-            when /^subconf(?:\s+(['"])?([-\w.\/\\]+)\1)?\s+(['"])?([-\w.\*\?\/\\]+)\3/
+            when /^subconf(?:\s+(['"]?)(\S+)\1)?\s+(['"]?)([\S]+)\3/
               # todo: the file may be * match many files (Gitolite v3).
               # http://sitaramc.github.com/gitolite/deleg.html
-              sub_conf_name = $2
-              sub_conf_name = $4 unless sub_conf_name
-              dir = File.dirname(@file)
               file = $4
+              sub_conf_name = $2
+              sub_conf_name = file unless sub_conf_name
+              dir = File.dirname(@file)
               path = Pathname.new file
               file = File.join(dir, file) unless path.absolute?
-              path = Pathname.new file
-              if file =~ /\*|\?/ # it should be a container for matched files.
+              if is_container?(file) # it should be a container for matched files.
                  Gitolite::Config.new(file, self)
               else
+                path = Pathname.new file
                 raise ParseError, "'#{line}' '#{file}' not exits!" unless path.file?
                 if !root_config.has_subconf?(sub_conf_name, 99) || !root_config.has_subconf?(parent, 99)
                   conf = Gitolite::Config.load_from(file, self)

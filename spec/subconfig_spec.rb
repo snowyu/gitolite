@@ -10,7 +10,7 @@ describe Gitolite::Config do
 
     describe '#new' do
       it 'should has a sub-configuration' do
-        @root_config.subconfs.length.should == 2
+        @root_config.subconfs.length.should == 3
         @root_config.has_subconf?('bar.conf').should == true
         bar = @root_config.get_subconf 'bar.conf'
         bar.class.should == Gitolite::Config
@@ -19,7 +19,7 @@ describe Gitolite::Config do
         bar.subconfs.length.should == 1
       end
 
-      it 'should has a repos in subconf' do
+      it 'should has a repos in subconf bar' do
           r = @bar_config.get_repo('bar')
           r.owner.should == "Mkie LEE"
           r.description.should == "This is a cool bar."
@@ -49,11 +49,12 @@ describe Gitolite::Config do
       end
 
       it 'should fetch a subconf by a string containing the absoluted filename' do
-        f = File.join(conf_dir, 'bar.conf')
+        f = File.join(conf_dir, 'bar.conf') # make the absoluted path file name.
         @root_config.get_subconf(f).should be_an_instance_of Gitolite::Config
       end
 
       it 'should fetch a subconf via a symbol representing the name' do
+        # todo maybe ignore the ext name in symbol? use ":bar" means "bar.conf"
         @root_config.get_subconf(:'bar.conf').should be_an_instance_of Gitolite::Config
       end
 
@@ -143,7 +144,7 @@ describe Gitolite::Config do
         f = File.read(file)
         lines = f.lines.map {|l| l.strip}
         # Compare the file lines.  Spacing is important here since we are doing a direct comparision
-        lines[0].should == "include    \"subconf1.conf\""
+        lines[0].should == "subconf    \"subconf1.conf\""
         # Cleanup
         File.unlink(file)
         file = '/tmp/subconf1.conf'
@@ -159,14 +160,18 @@ describe Gitolite::Config do
       end
 
       it 'should ensure save subconfs info and force to create the direcotory ' do
-        c = Gitolite::Config.init
-        c.filename = "test_subconfs.conf"
+        c = Gitolite::Config.new "test_subconfs.conf"
 
-        # Build some groups out of order
         s = Gitolite::Config.new "mytest_subconf/subconf1.conf", c
         g = Gitolite::Config::Group.new "groupa"
         g.add_users "bob", "@all"
         s.add_group(g)
+
+        # add a wildchar matched container
+        w = Gitolite::Config.new "wild/*.conf", c
+        c.get_subconf('wild/*.conf').should == w
+        Gitolite::Config.new('wild1.conf', w).add_group(g)
+
 
         # Write the config to a file
         file = c.to_file('/tmp', nil, true)
@@ -174,7 +179,8 @@ describe Gitolite::Config do
         f = File.read(file)
         lines = f.lines.map {|l| l.strip}
         # Compare the file lines.  Spacing is important here since we are doing a direct comparision
-        lines[0].should == "include    \"mytest_subconf/subconf1.conf\""
+        lines[0].should == "subconf    \"wild/*.conf\""
+        lines[1].should == "subconf    \"mytest_subconf/subconf1.conf\""
         # Cleanup
         File.unlink(file)
 
@@ -187,6 +193,18 @@ describe Gitolite::Config do
 
         # Cleanup
         File.unlink(file)
+
+        #check the subconfs of the container file.
+        file = '/tmp/wild/wild1.conf'
+        f = File.read(file)
+        lines = f.lines.map {|l| l.strip}
+
+        # Compare the file lines.  Spacing is important here since we are doing a direct comparision
+        lines[0].should == "@groupa             = @all bob"
+
+        # Cleanup
+        File.unlink(file)
+
         Dir.rmdir('/tmp/mytest_subconf')
 
       end
