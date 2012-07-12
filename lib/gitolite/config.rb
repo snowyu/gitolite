@@ -6,22 +6,51 @@ require File.join(File.dirname(__FILE__), 'config', 'group')
 
 module Gitolite
   class Config
-    attr_accessor :repos, :groups, :filename, :subconfs, :file, :parent
+    attr_accessor :repos, :groups, :filename, :subconfs, :file, :parent, :includes
 
     def initialize(config='gitolite.conf', parent=nil)
       @repos = {}
       @groups = {}
       @subconfs = {}
+      @includes = {}
       @file = config
       @parent = parent
       @root_config = nil
       @filename = File.basename(config)
-      @parent.add_subconf(self) if @parent
     end
 
     def self.init(filename = "gitolite.conf")
       self.new(filename)
     end
+
+    # Create the subconf instance. 
+    # the parent must be set.
+    def self.new_subconf(filename, parent)
+      conf = self.new(filename)
+      parent.add_subconf(conf)
+      conf
+    end
+
+    def self.new_inc(filename, parent)
+      conf = self.new(filename)
+      parent.add_inc(conf)
+      conf
+    end
+
+    # Create the subconf instance and load this subconf into the instance. 
+    # the parent must be set.
+    def self.load_subconf(filename, parent)
+      conf = new_subconf(filename, parent)
+      conf.load_from(filename)
+      conf
+    end
+
+    def self.load_inc(filename, parent)
+      conf = self.new_inc(filename, parent)
+      conf.load_from(filename)
+      conf
+    end
+
 
     def self.load_from(filename, parent=nil)
       conf = self.new(filename, parent)
@@ -29,7 +58,7 @@ module Gitolite
       conf
     end
 
-    def load_from(filename)
+    def load_from(filename=@file)
       process_config(filename)
     end
 
@@ -56,18 +85,11 @@ module Gitolite
 
     def parent=(conf)
       raise ArgumentError, "Config must be of type Gitolite::Config!" unless conf.instance_of? Gitolite::Config
-      if has_subconf? conf, 99
+      if has_subconf?(conf, 99) || has_inc?(conf, 99)
         raise ConfigDependencyError
       else
         @parent = conf
       end
-    end
-
-    def add_subconf(conf)
-      raise ArgumentError, "Config must be of type Gitolite::Config!" unless conf.instance_of? Gitolite::Config
-      conf.parent = self if conf.parent != self 
-      key = get_relative_path(conf.file)
-      @subconfs[key] = conf
     end
 
     # get the config file path base on the @file
@@ -102,27 +124,62 @@ module Gitolite
       file
     end
 
-    def has_subconf?(aFile, level = 1)
+    # add a include config
+    def add_inc(conf)
+      add_subconf(conf, @includes)
+    end
+
+    # has a include config
+    def has_inc?(aFile, level = 1)
+      has_subconf?(aFile, level, @includes)
+    end
+
+    # get the include config
+    def get_inc(file, level = 1)
+      get_subconf(file, level, @includes)
+    end
+
+    # rm a include config
+    def rm_inc(file)
+      rm_subconf(file, @includes)
+    end
+
+    def add_subconf(conf, container = @subconfs)
+      raise ArgumentError, "Config must be of type Gitolite::Config!" unless conf.instance_of? Gitolite::Config
+      conf.parent = self if conf.parent != self 
+      key = get_relative_path(conf.file)
+      container[key] = conf
+    end
+
+    def has_subconf?(aFile, level = 1, container = @subconfs)
       file = get_relative_path(normalize_config_name(aFile))
-      result = @subconfs.has_key?(file)
+      result = container.has_key?(file)
       if !result and (level > 1)
         level -= 1
-        @subconfs.each do |k, v|
-          result = v.has_subconf?(file, level)
+        container.each do |k, v|
+          result = v.has_subconf?(file, level, container)
           break if result 
         end
       end
       result
     end
 
-    def get_subconf(file)
-      file = normalize_config_name(file)
-      @subconfs[get_relative_path(file)]
+    def get_subconf(file, level = 1, container = @subconfs)
+      file = get_relative_path(normalize_config_name(file))
+      
+      result = container[file]
+      if !result and (level > 1)
+        level -= 1
+        container.each do |k,v|
+          result = v.get_subconf(file, level, container)
+        end
+      end
+      result
     end
 
-    def rm_subconf(file)
+    def rm_subconf(file, container = @subconfs)
       file = normalize_config_name(file)
-      @subconfs.delete(get_relative_path(file))
+      container.delete(get_relative_path(file))
     end
 
     #TODO: merge repo unless overwrite = true
@@ -183,6 +240,10 @@ module Gitolite
             k= get_relative_path k
             v.to_file(path, k, force_dir)
         end
+        @includes.each do |k ,v|
+            k= get_relative_path k
+            v.to_file(path, k, force_dir)
+        end
       else
         File.open(new_conf, "w") do |f|
           #Output groups
@@ -204,9 +265,17 @@ module Gitolite
           @subconfs.each do |k ,v|
             k= get_relative_path k
             gitweb_descs.push("subconf    \"#{k}\"")
-            v.to_file(path, k, force_dir) #unless is_container?(k)
+            v.to_file(path, k, force_dir)
           end
+          f.write gitweb_descs.join("\n")
 
+          # write includes into file
+          gitweb_descs = []
+          @includes.each do |k ,v|
+            k= get_relative_path k
+            gitweb_descs.push("include    \"#{k}\"")
+            v.to_file(path, k, force_dir)
+          end
           f.write gitweb_descs.join("\n")
         end
       end
@@ -293,12 +362,30 @@ module Gitolite
 
               r.owner = owner
               r.description = description
-            when /^include "(.+)"/
-              #TODO: implement includes
-              #ignore includes for now
-            when /^subconf(?:\s+(['"]?)(\S+)\1)?\s+(['"]?)([\S]+)\3/
-              # todo: the file may be * match many files (Gitolite v3).
-              # http://sitaramc.github.com/gitolite/deleg.html
+            when /^include\s+(['"])([\S]+)\1/
+              #TODO: check includes GroupDependencyError
+              file = $2
+              sub_conf_name = file
+              dir = File.dirname(@file)
+              path = Pathname.new file
+              file = File.join(dir, file) unless path.absolute?
+              if is_container?(file) # it should be a container for matched files.
+                 container = Gitolite::Config.new_inc(file, self)
+                 Dir[file].each do |f|
+                   Gitolite::Config.load_inc(f, container)
+                 end
+              else
+                path = Pathname.new file
+                raise ParseError, "'#{line}' '#{file}' not exits!" unless path.file?
+                LOG.debug "file=#{file}"
+                if !root_config.has_inc?(sub_conf_name, 99)
+                  Gitolite::Config.load_inc(file, self)
+                else
+                  LOG.debug "ConfigDependencyError: #{line}"
+                  raise ConfigDependencyError, "'#{line}' recursive reference!"
+                end
+              end
+            when /^subconf(?:\s+(['"]?)(\S+)\1)?\s+(['"])([\S]+)\3/
               file = $4
               sub_conf_name = $2
               sub_conf_name = file unless sub_conf_name
@@ -306,15 +393,16 @@ module Gitolite
               path = Pathname.new file
               file = File.join(dir, file) unless path.absolute?
               if is_container?(file) # it should be a container for matched files.
-                 container = Gitolite::Config.new(file, self)
+                 container = Gitolite::Config.new_subconf(file, self)
                  Dir[file].each do |f|
-                   Gitolite::Config.load_from(f, container)
+                   Gitolite::Config.load_subconf(f, container)
                  end
               else
                 path = Pathname.new file
                 raise ParseError, "'#{line}' '#{file}' not exits!" unless path.file?
-                if !root_config.has_subconf?(sub_conf_name, 99) || !root_config.has_subconf?(parent, 99)
-                  conf = Gitolite::Config.load_from(file, self)
+                subconf = root_config.get_subconf(sub_conf_name, 99)
+                if !subconf || !subconf.has_subconf?(self, 99)
+                  Gitolite::Config.load_subconf(file, self)
                 else
                   raise ConfigDependencyError, "'#{line}' recursive reference!"
                 end
