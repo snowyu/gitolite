@@ -23,7 +23,7 @@ module Gitolite
       self.new(filename)
     end
 
-    # Create the subconf instance. 
+    # Create the subconf instance.
     # the parent must be set.
     def self.new_subconf(filename, parent)
       conf = self.new(filename)
@@ -37,7 +37,7 @@ module Gitolite
       conf
     end
 
-    # Create the subconf instance and load this subconf into the instance. 
+    # Create the subconf instance and load this subconf into the instance.
     # the parent must be set.
     def self.load_subconf(filename, parent)
       conf = new_subconf(filename, parent)
@@ -146,7 +146,7 @@ module Gitolite
 
     def add_subconf(conf, container = @subconfs)
       raise ArgumentError, "Config must be of type Gitolite::Config!" unless conf.instance_of? Gitolite::Config
-      conf.parent = self if conf.parent != self 
+      conf.parent = self if conf.parent != self
       key = get_relative_path(conf.file)
       container[key] = conf
     end
@@ -166,7 +166,7 @@ module Gitolite
 
     def get_subconf(file, level = 1, container = @subconfs)
       file = get_relative_path(normalize_config_name(file))
-      
+
       result = container[file]
       if !result and (level > 1)
         level -= 1
