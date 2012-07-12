@@ -64,10 +64,11 @@ module Gitolite
 
     #Writes all aspects out to the file system
     #will also stage all changes
-    def save
+    def save(config=@config)
+      config = @config if config.class != Config
       Dir.chdir(@gl_admin.working_dir) do
         #Process config file
-        new_conf = @config.to_file(@confdir)
+        new_conf = config.to_file(@confdir)
         @gl_admin.add(new_conf)
 
         #Process ssh keys
@@ -162,7 +163,7 @@ module Gitolite
     private
       def load_data
         @ssh_keys = load_keys(File.join(@path, @keydir))
-        @config = Config.new(File.join(@path, @confdir, @conf))
+        @config = Config.load_from(File.join(@path, @confdir, @conf))
       end
 
       #Loads all .pub files in the gitolite-admin
