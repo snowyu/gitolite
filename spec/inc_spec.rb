@@ -146,7 +146,8 @@ describe Gitolite::Config do
         s.add_group(g)
 
         # Write the config to a file
-        file = c.to_file('/tmp')
+        c.to_file('/tmp')
+        file = '/tmp/test_incs.conf'
         # Read the conf and make sure our order is correct
         f = File.read(file)
         lines = f.lines.map {|l| l.strip}
@@ -181,7 +182,10 @@ describe Gitolite::Config do
 
 
         # Write the config to a file
-        file = c.to_file('/tmp', nil, true)
+        files = c.to_file('/tmp', nil, true)
+        files.should ==  ["/tmp/mytest_inc/inc1.conf", "/tmp/wild/wild1.conf", "/tmp/test_incs.conf"]
+
+        file = '/tmp/test_incs.conf'
         # Read the conf and make sure our order is correct
         f = File.read(file)
         lines = f.lines.map {|l| l.strip}

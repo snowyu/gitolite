@@ -223,9 +223,12 @@ module Gitolite
       @groups[name]
     end
 
+    # it will return the file name if only one config file saved
+    # Or it will return the saved file name list
     def to_file(path=".", filename=@filename, force_dir=false)
       filename=@filename if !filename || filename == ''
       new_conf = File.join(path, filename)
+      saved_files = []
       path = File.dirname(new_conf)
 
       if force_dir
@@ -238,11 +241,11 @@ module Gitolite
       if is_container?
         @subconfs.each do |k ,v|
             k= get_relative_path k
-            v.to_file(path, k, force_dir)
+            saved_files << v.to_file(path, k, force_dir)
         end
         @includes.each do |k ,v|
             k= get_relative_path k
-            v.to_file(path, k, force_dir)
+            saved_files << v.to_file(path, k, force_dir)
         end
       else
         File.open(new_conf, "w") do |f|
@@ -265,7 +268,7 @@ module Gitolite
           @subconfs.each do |k ,v|
             k= get_relative_path k
             gitweb_descs.push("subconf    \"#{k}\"")
-            v.to_file(path, k, force_dir)
+            saved_files << v.to_file(path, k, force_dir)
           end
           f.write gitweb_descs.join("\n")
 
@@ -274,13 +277,18 @@ module Gitolite
           @includes.each do |k ,v|
             k= get_relative_path k
             gitweb_descs.push("include    \"#{k}\"")
-            v.to_file(path, k, force_dir)
+            saved_files << v.to_file(path, k, force_dir)
           end
           f.write gitweb_descs.join("\n")
         end
       end
 
-      new_conf
+      if saved_files.length > 0
+        saved_files << new_conf unless is_container?
+        saved_files.flatten
+      else
+        new_conf
+      end
     end
 
     private
@@ -377,11 +385,9 @@ module Gitolite
               else
                 path = Pathname.new file
                 raise ParseError, "'#{line}' '#{file}' not exits!" unless path.file?
-                LOG.debug "file=#{file}"
                 if !root_config.has_inc?(sub_conf_name, 99)
                   Gitolite::Config.load_inc(file, self)
                 else
-                  LOG.debug "ConfigDependencyError: #{line}"
                   raise ConfigDependencyError, "'#{line}' recursive reference!"
                 end
               end
