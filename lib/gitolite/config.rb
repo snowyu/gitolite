@@ -227,7 +227,11 @@ module Gitolite
     # Or it will return the saved file name list
     def to_file(path=".", filename=@filename, force_dir=false)
       filename=@filename if !filename || filename == ''
-      new_conf = File.join(path, filename)
+      if path == nil and filename=@filename
+        new_conf = @file
+      else
+        new_conf = File.join(path, filename)
+      end
       saved_files = []
       path = File.dirname(new_conf)
 
