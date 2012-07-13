@@ -68,6 +68,12 @@ module Gitolite
        Config.load_from(File.join(@path, @confdir, filename))
     end
 
+    # new a config file from the @confdir
+    # the filename is a relative path of @confdir
+    def new_config(filename)
+       Config.new(File.join(@path, @confdir, filename))
+    end
+
     #Writes all aspects out to the file system
     #will also stage all changes
     def save(config=@config, options = {})
