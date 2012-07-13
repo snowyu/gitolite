@@ -51,7 +51,7 @@ module Gitolite
       r = Config::Repo.new(options[:repo] || "gitolite-admin")
       r.add_permission(options[:perm], options[:refex], options[:user])
       c.add_repo(r)
-      config = c.to_file(File.join(path, "conf"), options[:force_dir])
+      config = c.to_file(File.join(path, "conf"), '', options[:force_dir])
 
       repo = Grit::Repo.init(path)
       Dir.chdir(path) do
