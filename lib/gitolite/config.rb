@@ -257,10 +257,12 @@ module Gitolite
             saved_files << v.to_file(path, k, force_dir)
           end
           f.write gitweb_descs.join("\n")
+          f.write "\n"
 
           #Output groups
           dep_order = build_groups_depgraph
           dep_order.each {|group| f.write group.to_s }
+          f.write "\n"
 
           # write repos into file
           gitweb_descs = []
@@ -272,6 +274,7 @@ module Gitolite
           end
 
           f.write gitweb_descs.join("\n")
+          f.write "\n"
 
           # write subconfs into file
           gitweb_descs = []
