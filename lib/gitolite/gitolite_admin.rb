@@ -62,6 +62,12 @@ module Gitolite
       self.new(path)
     end
 
+    # load a config file from the @confdir
+    # the filename is a relative path of @confdir
+    def load_from_config(filename)
+       Config.load_from(File.join(@path, @confdir, filename))
+    end
+
     #Writes all aspects out to the file system
     #will also stage all changes
     def save(config=@config)
@@ -71,6 +77,12 @@ module Gitolite
         new_conf = config.to_file(@confdir)
         @gl_admin.add(new_conf)
 
+        save_keys if config == @config
+      end
+    end
+
+    def save_keys()
+      Dir.chdir(@gl_admin.working_dir) do
         #Process ssh keys
         files = list_keys(@keydir).map{|f| File.basename f}
         keys = @ssh_keys.values.map{|f| f.map {|t| t.filename}}.flatten
