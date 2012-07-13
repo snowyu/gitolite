@@ -70,11 +70,11 @@ module Gitolite
 
     #Writes all aspects out to the file system
     #will also stage all changes
-    def save(config=@config)
+    def save(config=@config, options = {})
       config = @config if config.class != Config
       Dir.chdir(@gl_admin.working_dir) do
         #Process config file
-        new_conf = config.to_file(@confdir)
+        new_conf = config.to_file(@confdir, '', options[:foce_dir])
         @gl_admin.add(new_conf)
 
         save_keys if config == @config
