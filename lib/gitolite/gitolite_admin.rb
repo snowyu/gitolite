@@ -74,7 +74,7 @@ module Gitolite
       config = @config if config.class != Config
       Dir.chdir(@gl_admin.working_dir) do
         #Process config file
-        new_conf = config.to_file(@confdir, '', options[:foce_dir])
+        new_conf = config.to_file(@confdir, '', options[:force_dir])
         @gl_admin.add(new_conf)
 
         save_keys if config == @config
