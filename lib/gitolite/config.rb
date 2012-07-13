@@ -239,20 +239,30 @@ module Gitolite
       end
 
       if is_container?
-        @subconfs.each do |k ,v|
+        @includes.each do |k ,v|
             k= get_relative_path k
             saved_files << v.to_file(path, k, force_dir)
         end
-        @includes.each do |k ,v|
+        @subconfs.each do |k ,v|
             k= get_relative_path k
             saved_files << v.to_file(path, k, force_dir)
         end
       else
         File.open(new_conf, "w") do |f|
+          # write includes into file
+          gitweb_descs = []
+          @includes.each do |k ,v|
+            k= get_relative_path k
+            gitweb_descs.push("include    \"#{k}\"")
+            saved_files << v.to_file(path, k, force_dir)
+          end
+          f.write gitweb_descs.join("\n")
+
           #Output groups
           dep_order = build_groups_depgraph
           dep_order.each {|group| f.write group.to_s }
 
+          # write repos into file
           gitweb_descs = []
           @repos.each do |k, v|
             f.write v.to_s
@@ -272,14 +282,6 @@ module Gitolite
           end
           f.write gitweb_descs.join("\n")
 
-          # write includes into file
-          gitweb_descs = []
-          @includes.each do |k ,v|
-            k= get_relative_path k
-            gitweb_descs.push("include    \"#{k}\"")
-            saved_files << v.to_file(path, k, force_dir)
-          end
-          f.write gitweb_descs.join("\n")
         end
       end
 
