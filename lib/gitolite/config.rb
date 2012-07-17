@@ -261,7 +261,7 @@ module Gitolite
         vPath = Pathname.new File.dirname(new_conf)
         vPath.mkpath unless vPath.exist?
       else
-        raise ArgumentError, "Path contains a filename or does not exist" unless File.directory?(path)
+        raise ArgumentError, "Path contains a filename or does not exist:#{path}" unless File.directory?(path)
       end
 
       if is_container?
