@@ -9,10 +9,7 @@ module Gitolite
     attr_accessor :repos, :groups, :filename, :subconfs, :file, :parent, :includes
 
     def initialize(config='gitolite.conf', parent=nil)
-      @repos = {}
-      @groups = {}
-      @subconfs = {}
-      @includes = {}
+      clear
       @file = config
       @parent = parent
       @root_config = nil
@@ -21,6 +18,14 @@ module Gitolite
 
     def self.init(filename = "gitolite.conf")
       self.new(filename)
+    end
+
+    # clear the config data
+    def clear
+      @repos = {}
+      @groups = {}
+      @subconfs = {}
+      @includes = {}
     end
 
     # Create the subconf instance.
@@ -56,6 +61,14 @@ module Gitolite
       conf = self.new(filename, parent)
       conf.load_from(filename)
       conf
+    end
+
+    # reload the config from the @file
+    def reload()
+      if @file
+        clear
+        load_from
+      end
     end
 
     def load_from(filename=@file)
@@ -157,7 +170,11 @@ module Gitolite
       if !result and (level > 1)
         level -= 1
         container.each do |k, v|
-          result = v.has_subconf?(file, level, container)
+          if container == @includes
+            result = v.has_inc?(file, level)
+          else
+            result = v.has_subconf?(file, level)
+          end
           break if result 
         end
       end
@@ -171,7 +188,12 @@ module Gitolite
       if !result and (level > 1)
         level -= 1
         container.each do |k,v|
-          result = v.get_subconf(file, level, container)
+          if container == @includes
+            result = v.get_inc(file, level)
+          else
+            result = v.get_subconf(file, level)
+          end
+          break if result 
         end
       end
       result
